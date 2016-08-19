@@ -42,6 +42,16 @@ namespace :db do
         end
       end
     end
+
+    desc 'Synchronize local db with remote db, but only for the specified schemas example: cap staging "db:local:sync_schemas[nl:us]"'
+    task :sync_schemas, :schemas do |t, args|
+      on roles(:db) do
+        puts "Local database: #{Database::Local.new(self).database}"
+        if fetch(:skip_data_sync_confirm) || Util.prompt('Are you sure you want to erase your local database with server database')
+          Database.selective_schemas_to_local(self, args[:schemas].split(':'))
+        end
+      end    
+    end
   end
 
   desc 'Synchronize your local database using remote database data'

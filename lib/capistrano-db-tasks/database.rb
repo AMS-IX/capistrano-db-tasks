@@ -1,10 +1,11 @@
 module Database
   class Base
 
-    attr_accessor :config, :output_file
+    attr_accessor :config, :output_file, :schemas
 
     def initialize(cap_instance)
       @cap = cap_instance
+      @schemas = []
     end
 
     def mysql?
@@ -73,7 +74,12 @@ module Database
         "mysql #{credentials} -D #{database} < #{file}"
       elsif postgresql?
         terminate_connection_sql = "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = '#{database}' AND pid <> pg_backend_pid();"
-        "#{pgpass} psql -c \"#{terminate_connection_sql};\" #{credentials}; #{pgpass} dropdb #{credentials} #{database}; #{pgpass} createdb #{credentials} #{database}; #{pgpass} psql #{credentials} -d #{database} < #{file}"
+        if @schemas && @schemas.any?
+          remove_schemas_sql = "#{@schemas.map{|s| "DROP SCHEMA IF EXISTS #{s} CASCADE"}.join('; ')}"
+          "#{pgpass} psql -c \"#{terminate_connection_sql} #{remove_schemas_sql}\"; #{pgpass} psql #{credentials} -d #{database} < #{file}"
+        else
+          "#{pgpass} psql -c \"#{terminate_connection_sql};\" #{credentials}; #{pgpass} dropdb #{credentials} #{database}; #{pgpass} createdb #{credentials} #{database}; #{pgpass} psql #{credentials} -d #{database} < #{file}"
+        end
       end
     end
 
@@ -81,7 +87,11 @@ module Database
       if mysql?
         "--lock-tables=false #{dump_cmd_ignore_tables_opts} #{dump_cmd_ignore_data_tables_opts}"
       elsif postgresql?
-        "--no-acl --no-owner #{dump_cmd_ignore_tables_opts} #{dump_cmd_ignore_data_tables_opts}"
+        options = "--no-acl --no-owner #{dump_cmd_ignore_tables_opts} #{dump_cmd_ignore_data_tables_opts}"
+        if @schemas && schemas.any?
+          options += @schemas.map{|s| " -n #{s}"}.join
+        end
+        options
       end
     end
 
@@ -146,7 +156,6 @@ module Database
     def initialize(cap_instance)
       super(cap_instance)
       @config = YAML.load(ERB.new(File.read(File.join('config', 'database.yml'))).result)[fetch(:local_rails_env).to_s]
-      puts "local #{@config}"
     end
 
     # cleanup = true removes the mysqldump file after loading, false leaves it in db/
@@ -154,6 +163,7 @@ module Database
       unzip_file = File.join(File.dirname(file), File.basename(file, ".#{compressor.file_extension}"))
       # execute("bunzip2 -f #{file} && bundle exec rake db:drop db:create && #{import_cmd(unzip_file)} && bundle exec rake db:migrate")
       @cap.info "executing local: #{compressor.decompress(file)}" && #{import_cmd(unzip_file)}"
+      imprt_cmd = import_cmd(unzip_file)
       execute("#{compressor.decompress(file)} && #{import_cmd(unzip_file)}")
       if cleanup
         @cap.info "removing #{unzip_file}"
@@ -204,6 +214,22 @@ module Database
       end
       local_db.load(remote_db.output_file, instance.fetch(:db_local_clean))
     end
+
+    def selective_schemas_to_local(instance, schemas = [])
+      local_db  = Database::Local.new(instance)
+      remote_db = Database::Remote.new(instance)
+      local_db.schemas = schemas
+      remote_db.schemas = schemas
+      check(local_db, remote_db)
+
+      begin
+        remote_db.dump.download
+      ensure
+        remote_db.clean_dump_if_needed
+      end
+      local_db.load(remote_db.output_file, instance.fetch(:db_local_clean))      
+    end
+
 
     def local_to_remote(instance)
       local_db  = Database::Local.new(instance)
