@@ -76,7 +76,7 @@ module Database
         terminate_connection_sql = "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = '#{database}' AND pid <> pg_backend_pid();"
         if @schemas && @schemas.any?
           remove_schemas_sql = "#{@schemas.map{|s| "DROP SCHEMA IF EXISTS #{s} CASCADE"}.join('; ')}"
-          "#{pgpass} psql -d #{database} #{credentials} -c \"#{terminate_connection_sql} #{remove_schemas_sql}\"; #{pgpass} psql #{credentials} -d #{database} < #{file}"
+          "#{pgpass} psql -v ON_ERROR_STOP=1 -d #{database} #{credentials} -c \"#{terminate_connection_sql} #{remove_schemas_sql}\"; #{pgpass} psql #{credentials} -d #{database} < #{file}"
         else
           "#{pgpass} psql -c \"#{terminate_connection_sql};\" #{credentials}; #{pgpass} dropdb #{credentials} #{database}; #{pgpass} createdb #{credentials} #{database}; #{pgpass} psql #{credentials} -d #{database} < #{file}"
         end
