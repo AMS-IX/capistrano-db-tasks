@@ -184,6 +184,17 @@ module Database
       @cap.upload! output_file, remote_file
     end
 
+    def remove_sensitive_data
+      puts "Local database: remove sensitive data"
+
+      schemas = %w(public lab us abstract)
+      schemas.each do |schema|
+        puts "Local database: removing sensitive data from schema #{schema}"
+        email_update_sql = "UPDATE #{schema}.users SET email = CONCAT(SUBSTRING(email from '^[\\w.+\\-\\_\\~\\d]+'), '@bogus.ams-ix.net');"
+        execute("#{pgpass} psql -d #{database} #{credentials} -c \"#{email_update_sql}\"")
+      end
+    end
+
     private
 
     def execute(cmd)
