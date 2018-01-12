@@ -190,7 +190,7 @@ module Database
       schemas = %w(public lab us abstract)
       schemas.each do |schema|
         puts "Local database: removing sensitive data from schema #{schema}"
-        email_update_sql = "UPDATE #{schema}.users SET email = CONCAT(SUBSTRING(email from '^[\\w.+\\-\\_\\~\\d]+'), '@bogus.ams-ix.net');"
+        email_update_sql = "UPDATE #{schema}.users SET email = CONCAT(SUBSTRING(email from '^[\\w.+\\-\\_\\~\\d]+'), '@bogus.ams-ix.net') WHERE email not like '%ams-ix.net';"
         execute("#{pgpass} psql -d #{database} #{credentials} -c \"#{email_update_sql}\"")
       end
     end
