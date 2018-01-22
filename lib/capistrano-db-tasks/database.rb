@@ -184,11 +184,18 @@ module Database
       @cap.upload! output_file, remote_file
     end
 
-    def remove_sensitive_data
+    def remove_sensitive_data(schemas)
+      # Accepts a list of schemas, for example [nl:us]
+      # meaning "replace emails for shards nl and us"
+
+      schemas = [schemas] unless schemas.is_a? Array
+
       puts "Local database: removing sensitive data, hold tight..."
-      stdout3, status3 = Open3.capture2('bundle', 'exec', 'rake', 'replace_emails_in_database')
-      puts stdout3
-      puts status3
+      for schema in schemas do
+        stdout3, status3 = Open3.capture2('bundle', 'exec', 'rake', "replace_emails_in_database[#{schema}]")
+        puts stdout3
+        puts status3
+      end
     end
 
     private

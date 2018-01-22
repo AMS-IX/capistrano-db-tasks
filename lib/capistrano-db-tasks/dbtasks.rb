@@ -39,7 +39,7 @@ namespace :db do
         puts "Local database: #{Database::Local.new(self).database}"
         if fetch(:skip_data_sync_confirm) || Util.prompt('Are you sure you want to erase your local database with server database')
           Database.remote_to_local(self)
-          Database::Local.new(self).remove_sensitive_data
+          Database::Local.new(self).remove_sensitive_data('nl')
         end
       end
     end
@@ -50,6 +50,7 @@ namespace :db do
         puts "Local database: #{Database::Local.new(self).database}"
         if fetch(:skip_data_sync_confirm) || Util.prompt('Are you sure you want to erase your local database with server database')
           Database.selective_schemas_to_local(self, args[:schemas].split(':'))
+          Database::Local.new(self).remove_sensitive_data(args[:schemas].split(':'))
         end
       end    
     end
